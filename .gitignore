@@ -25,3 +25,6 @@ build/
 
 # Data files
 boc_announcement_monitor/data/
+
+# Environment files
+.env

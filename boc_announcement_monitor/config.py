@@ -2,6 +2,11 @@
 
 import os
 
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
+
 # 获取当前脚本所在目录
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
