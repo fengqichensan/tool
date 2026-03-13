@@ -1,5 +1,6 @@
 """PDF下载和内容提取模块"""
 
+import logging
 import os
 import tempfile
 from typing import Optional
@@ -7,6 +8,8 @@ from typing import Optional
 import requests
 
 import config
+
+log = logging.getLogger("boc_monitor")
 
 
 class PDFReader:
@@ -36,10 +39,10 @@ class PDFReader:
 
             return temp_path
         except requests.RequestException as e:
-            print(f"下载PDF失败: {url}, 错误: {e}")
+            log.error(f"下载PDF失败: {url}, 错误: {e}")
             return None
         except IOError as e:
-            print(f"保存PDF失败: {e}")
+            log.error(f"保存PDF失败: {e}")
             return None
 
     def extract_text(self, pdf_path: str) -> str:
@@ -61,7 +64,7 @@ class PDFReader:
         except ImportError:
             pass
         except Exception as e:
-            print(f"pdfplumber提取失败: {e}")
+            log.error(f"pdfplumber提取失败: {e}")
 
         # 备选：使用PyMuPDF (fitz)
         try:
@@ -72,7 +75,7 @@ class PDFReader:
         except ImportError:
             pass
         except Exception as e:
-            print(f"PyMuPDF提取失败: {e}")
+            log.error(f"PyMuPDF提取失败: {e}")
 
         return text
 

@@ -1,14 +1,18 @@
 """网页爬取和公告解析模块"""
 
+import hashlib
+import logging
 import re
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
 import config
+
+log = logging.getLogger("boc_monitor")
 
 
 class AnnouncementScraper:
@@ -79,7 +83,6 @@ class AnnouncementScraper:
             if id_match:
                 announcement_id = f"{date}_{id_match.group(2)}"
             else:
-                import hashlib
                 announcement_id = f"{date}_{hashlib.md5(title.encode()).hexdigest()[:8]}"
 
             announcements.append({
@@ -143,7 +146,6 @@ class AnnouncementScraper:
             return f"{date}_{base_name}"
 
         # 备选：使用日期+标题hash
-        import hashlib
         title_hash = hashlib.md5(title.encode()).hexdigest()[:8]
         return f"{date}_{title_hash}"
 
@@ -174,5 +176,5 @@ class AnnouncementScraper:
 
             return ""
         except Exception as e:
-            print(f"提取PDF链接失败: {html_url}, 错误: {e}")
+            log.error(f"提取PDF链接失败: {html_url}, 错误: {e}")
             return ""
