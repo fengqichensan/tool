@@ -10,12 +10,26 @@ import logger
 import pdf_reader
 import scraper
 import storage
+import telegram_notifier
 
 log = logger.setup_logger()
 
 
 def process_new_announcements() -> List[Dict]:
-    """处理新公告并返回结果"""
+    """处理新公告并返回结果。"""
+    notifier = telegram_notifier.TelegramNotifier()
+    notifier.send_start()
+
+    try:
+        return _do_process(notifier)
+    except Exception as e:
+        log.error(f"任务执行出错: {e}")
+        notifier.send_error(str(e))
+        return []
+
+
+def _do_process(notifier: telegram_notifier.TelegramNotifier) -> List[Dict]:
+    """执行公告处理的核心逻辑。"""
     # 清理旧日志
     logger.cleanup_old_logs()
 
@@ -26,11 +40,7 @@ def process_new_announcements() -> List[Dict]:
 
     # 获取公告列表
     log.info("正在获取公告列表...")
-    try:
-        announcements = sc.get_announcements()
-    except Exception as e:
-        log.error(f"获取公告列表失败: {e}")
-        return []
+    announcements = sc.get_announcements()
 
     log.info(f"共找到 {len(announcements)} 条公告")
 
@@ -64,6 +74,9 @@ def process_new_announcements() -> List[Dict]:
         # 标记为已发送
         store.mark_sent(ann["id"], ann["title"], ann["date"])
 
+        # 发送 Telegram 通知
+        notifier.send_announcement(ann["title"], ann["pdf_url"], ann["date"])
+
         # 收集结果
         results.append(
             {
@@ -75,6 +88,7 @@ def process_new_announcements() -> List[Dict]:
             }
         )
 
+    notifier.send_complete(len(results))
     return results
 
 
