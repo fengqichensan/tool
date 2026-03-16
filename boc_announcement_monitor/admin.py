@@ -2,11 +2,19 @@
 """管理界面 - Web管理页面用于控制定时任务"""
 
 import json
+import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template_string, request
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -227,7 +235,8 @@ def save_config(config: dict) -> None:
 def update_cron(config: dict) -> None:
     """Update crontab based on configuration."""
     if not config["enabled"]:
-        subprocess.run(["crontab", "-r"], capture_output=True)
+        result = subprocess.run(["crontab", "-r"], capture_output=True)
+        log.info(f"Removed crontab, returncode={result.returncode}")
         return
 
     times = config["times"]
@@ -247,7 +256,8 @@ def update_cron(config: dict) -> None:
                 minute_hours[minute].append(hour)
 
     if not minute_hours:
-        subprocess.run(["crontab", "-r"], capture_output=True)
+        result = subprocess.run(["crontab", "-r"], capture_output=True)
+        log.info(f"Removed crontab (no times), returncode={result.returncode}")
         return
 
     cron_lines = []
@@ -258,7 +268,18 @@ def update_cron(config: dict) -> None:
         )
 
     cron_content = "\n".join(cron_lines) + "\n"
-    subprocess.run(["crontab", "-"], input=cron_content.encode(), capture_output=True)
+    log.info(f"Setting crontab:\n{cron_content}")
+
+    result = subprocess.run(
+        ["crontab", "-"],
+        input=cron_content.encode(),
+        capture_output=True,
+    )
+
+    if result.returncode != 0:
+        log.error(f"crontab command failed: {result.stderr.decode()}")
+    else:
+        log.info("crontab updated successfully")
 
 
 def get_logs() -> str:
@@ -361,6 +382,18 @@ def run_now():
         return jsonify({"error": "执行超时"})
     except Exception as e:
         return jsonify({"error": str(e)})
+
+
+@app.route("/api/debug/crontab", methods=["GET"])
+def debug_crontab():
+    """Debug endpoint to check current crontab status."""
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+    return jsonify({
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "config": load_config()
+    })
 
 
 if __name__ == "__main__":
