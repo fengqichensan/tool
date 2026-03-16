@@ -190,6 +190,23 @@ HTML_TEMPLATE = """
 """
 
 
+def normalize_time(time_str: str) -> str:
+    """Normalize time format by removing leading zeros from hour.
+
+    Args:
+        time_str: Time string in "HH:MM" format
+
+    Returns:
+        Normalized time string like "9:30" instead of "09:30"
+    """
+    parts = time_str.split(":")
+    if len(parts) == 2:
+        hour = int(parts[0])
+        minute = parts[1]
+        return f"{hour}:{minute}"
+    return time_str
+
+
 def load_config() -> dict:
     """Load schedule configuration from file."""
     config_path = Path(CONFIG_FILE)
@@ -216,20 +233,32 @@ def update_cron(config: dict) -> None:
     times = config["times"]
     weekdays = ",".join(str(d) for d in config["weekdays"])
 
-    hours_minutes = []
+    # Group hours by minute for correct cron syntax
+    # e.g., "9:30" and "11:30" -> minute 30, hours [9, 11] -> "30 9,11"
+    minute_hours: dict[str, list[int]] = {}
     for t in times:
         parts = t.split(":")
         if len(parts) == 2:
-            hours_minutes.append(f"{parts[1]} {parts[0]}")
+            minute = parts[1]
+            hour = int(parts[0])
+            if minute not in minute_hours:
+                minute_hours[minute] = []
+            if hour not in minute_hours[minute]:
+                minute_hours[minute].append(hour)
 
-    if not hours_minutes:
+    if not minute_hours:
         subprocess.run(["crontab", "-r"], capture_output=True)
         return
 
-    time_spec = ",".join(hours_minutes)
-    cron_line = f"{time_spec} * * {weekdays} cd /app && {PYTHON_PATH} main.py >> /app/data/logs/cron.log 2>&1\n"
+    cron_lines = []
+    for minute, hours in minute_hours.items():
+        hours_str = ",".join(str(h) for h in sorted(hours))
+        cron_lines.append(
+            f"{minute} {hours_str} * * {weekdays} cd /app && {PYTHON_PATH} main.py >> /app/data/logs/cron.log 2>&1"
+        )
 
-    subprocess.run(["crontab", "-"], input=cron_line.encode(), capture_output=True)
+    cron_content = "\n".join(cron_lines) + "\n"
+    subprocess.run(["crontab", "-"], input=cron_content.encode(), capture_output=True)
 
 
 def get_logs() -> str:
@@ -279,11 +308,11 @@ def set_enabled():
 @app.route("/api/schedule/times", methods=["POST"])
 def add_schedule_time():
     data = request.get_json()
-    time_str = data.get("time", "")
+    time_str = normalize_time(data.get("time", ""))
     config = load_config()
     if time_str and time_str not in config["times"]:
         config["times"].append(time_str)
-        config["times"].sort()
+        config["times"].sort(key=lambda t: int(t.split(":")[0]) * 60 + int(t.split(":")[1]))
         save_config(config)
         update_cron(config)
     return jsonify({"success": True})
@@ -292,7 +321,7 @@ def add_schedule_time():
 @app.route("/api/schedule/times", methods=["DELETE"])
 def remove_schedule_time():
     data = request.get_json()
-    time_str = data.get("time", "")
+    time_str = normalize_time(data.get("time", ""))
     config = load_config()
     if time_str in config["times"]:
         config["times"].remove(time_str)
