@@ -1,4 +1,4 @@
-"""日志模块"""
+"""Shared logging module."""
 
 import logging
 import os
@@ -13,35 +13,31 @@ LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
-def setup_logger(name: str = "boc_monitor") -> logging.Logger:
-    """配置并返回日志记录器。
+def setup_logger(name: str = "monitor") -> logging.Logger:
+    """Configure and return a logger instance.
 
     Args:
-        name: 日志记录器名称
+        name: Logger name
 
     Returns:
-        配置好的 Logger 实例
+        Configured Logger instance
     """
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
-    # 避免重复添加 handler
     if logger.handlers:
         return logger
 
-    # 确保 logs 目录存在
     Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
 
-    # 文件 handler（按天）
     log_file = os.path.join(
-        LOG_DIR, f"boc_monitor_{datetime.now().strftime('%Y-%m-%d')}.log"
+        LOG_DIR, f"monitor_{datetime.now().strftime('%Y-%m-%d')}.log"
     )
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
     logger.addHandler(file_handler)
 
-    # 控制台 handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
@@ -51,13 +47,13 @@ def setup_logger(name: str = "boc_monitor") -> logging.Logger:
 
 
 def cleanup_old_logs():
-    """清理超过指定天数的日志文件"""
+    """Remove log files older than retention period."""
     log_path = Path(LOG_DIR)
     if not log_path.exists():
         return
 
     cutoff_date = datetime.now() - timedelta(days=LOG_RETENTION_DAYS)
-    for log_file in log_path.glob("boc_monitor_*.log"):
+    for log_file in log_path.glob("monitor_*.log"):
         try:
             date_str = log_file.stem.split("_")[-1]
             file_date = datetime.strptime(date_str, "%Y-%m-%d")

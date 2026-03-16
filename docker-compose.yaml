@@ -1,16 +1,16 @@
 services:
-  boc-monitor:
+  monitor:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: boc-announcement-monitor
+    container_name: monitor-system
     restart: unless-stopped
     env_file:
-      - boc_announcement_monitor/.env
+      - .env
     ports:
       - "8080:8080"
     volumes:
-      - boc-monitor-data:/app/data
+      - monitor-data:/app/data
     logging:
       driver: "json-file"
       options:
@@ -18,4 +18,4 @@ services:
         max-file: "3"
 
 volumes:
-  boc-monitor-data:
+  monitor-data:

@@ -1,7 +1,7 @@
 FROM python:3.11-slim-bookworm
 
-LABEL maintainer="BOC Monitor"
-LABEL description="Bank of China Announcement Monitor with Telegram notifications"
+LABEL maintainer="Monitor"
+LABEL description="Multi-monitor system with Telegram notifications"
 
 ENV TZ=Asia/Shanghai
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -16,10 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone
 
-COPY boc_announcement_monitor/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY boc_announcement_monitor/ .
+COPY monitors/ ./monitors/
+COPY admin.py .
+COPY config.py .
+COPY logger.py .
 
 RUN mkdir -p /app/data/logs
 

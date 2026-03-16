@@ -24,7 +24,7 @@ build/
 .LSOverride
 
 # Data files
-boc_announcement_monitor/data/
+data/
 
 # Environment files
 .env
