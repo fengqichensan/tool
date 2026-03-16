@@ -8,8 +8,12 @@
 - 只获取当日公告
 - 自动下载公告 PDF 并提取文本
 - 记录已处理公告，避免重复处理
+- Docker 化部署，支持 Web 管理界面
+- 定时任务管理（启动/停止、修改执行时间）
 
 ## 安装
+
+### 方式一：直接运行
 
 ```bash
 cd boc_announcement_monitor
@@ -18,11 +22,50 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### 方式二：Docker
+
+```bash
+# 复制环境变量配置
+cp boc_announcement_monitor/.env.example boc_announcement_monitor/.env
+# 编辑 .env 填入 Telegram 配置
+
+# 构建并启动
+docker-compose up -d
+```
+
+Docker 容器会自动在工作日（周一至周五）的中国时间 9:30、11:30、14:30、16:30、18:30 执行监控任务。
+
 ## 使用
+
+### 直接运行
 
 ```bash
 python main.py
 ```
+
+### Docker 运行
+
+```bash
+# 启动容器
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 手动执行一次监控
+docker exec boc-announcement-monitor python /app/main.py
+```
+
+### Web 管理界面
+
+Docker 容器启动后，访问 `http://localhost:8080` 进入管理界面，可以：
+
+- 查看任务运行状态
+- 启动/停止定时任务
+- 添加/删除执行时间
+- 选择执行日期（周一至周日）
+- 立即执行一次监控
+- 查看最近日志
 
 ## 运行结果
 
@@ -116,6 +159,7 @@ python main.py
 ```
 boc_announcement_monitor/
 ├── main.py        # 主程序入口
+├── admin.py       # Web 管理界面
 ├── scraper.py     # 网页爬取模块
 ├── pdf_reader.py  # PDF 下载和解析模块
 ├── storage.py     # 已发送记录存储模块
@@ -123,4 +167,11 @@ boc_announcement_monitor/
 ├── requirements.txt
 └── data/
     └── sent_records.json
+
+docker/
+├── cronjob        # Cron 定时任务配置
+└── entrypoint.sh  # Docker 入口脚本
+
+Dockerfile         # Docker 镜像构建文件
+docker-compose.yaml # Docker Compose 配置
 ```
