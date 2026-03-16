@@ -2,7 +2,6 @@
 """管理界面 - Web管理页面用于控制定时任务"""
 
 import json
-import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -12,8 +11,8 @@ from flask import Flask, jsonify, render_template_string, request
 app = Flask(__name__)
 
 CONFIG_FILE = "/app/data/schedule_config.json"
-CRON_FILE = "/etc/cron.d/boc-monitor"
 LOG_FILE = "/app/data/logs/cron.log"
+PYTHON_PATH = "/usr/local/bin/python"
 
 DEFAULT_SCHEDULE = {
     "enabled": True,
@@ -228,7 +227,7 @@ def update_cron(config: dict) -> None:
         return
 
     time_spec = ",".join(hours_minutes)
-    cron_line = f"{time_spec} * * {weekdays} cd /app && /usr/local/bin/python main.py >> /app/data/logs/cron.log 2>&1\n"
+    cron_line = f"{time_spec} * * {weekdays} cd /app && {PYTHON_PATH} main.py >> /app/data/logs/cron.log 2>&1\n"
 
     subprocess.run(["crontab", "-"], input=cron_line.encode(), capture_output=True)
 
@@ -321,7 +320,7 @@ def toggle_weekday():
 def run_now():
     try:
         result = subprocess.run(
-            ["python", "/app/main.py"],
+            [PYTHON_PATH, "/app/main.py"],
             capture_output=True,
             text=True,
             timeout=120,

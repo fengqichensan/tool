@@ -23,10 +23,6 @@ COPY boc_announcement_monitor/ .
 
 RUN mkdir -p /app/data/logs
 
-COPY docker/cronjob /etc/cron.d/boc-monitor
-RUN chmod 0644 /etc/cron.d/boc-monitor \
-    && crontab /etc/cron.d/boc-monitor
-
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
