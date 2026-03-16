@@ -1,4 +1,4 @@
-"""PDF下载和内容提取模块"""
+"""PDF download and content extraction module."""
 
 import logging
 import os
@@ -9,11 +9,11 @@ import requests
 
 import config
 
-log = logging.getLogger("boc_monitor")
+log = logging.getLogger("monitor")
 
 
 class PDFReader:
-    """PDF文件处理"""
+    """PDF file processor."""
 
     def __init__(self):
         self.session = requests.Session()
@@ -22,15 +22,14 @@ class PDFReader:
         })
 
     def download_pdf(self, url: str) -> Optional[str]:
-        """下载PDF文件到临时目录
+        """Download PDF file to temp directory.
 
-        返回临时文件路径，失败返回None
+        Returns temp file path, or None on failure.
         """
         try:
             response = self.session.get(url, timeout=config.REQUEST_TIMEOUT)
             response.raise_for_status()
 
-            # 创建临时文件
             fd, temp_path = tempfile.mkstemp(suffix='.pdf')
             os.close(fd)
 
@@ -39,48 +38,45 @@ class PDFReader:
 
             return temp_path
         except requests.RequestException as e:
-            log.error(f"下载PDF失败: {url}, 错误: {e}")
+            log.error(f"Failed to download PDF: {url}, error: {e}")
             return None
         except IOError as e:
-            log.error(f"保存PDF失败: {e}")
+            log.error(f"Failed to save PDF: {e}")
             return None
 
     def extract_text(self, pdf_path: str) -> str:
-        """提取PDF文本内容
+        """Extract PDF text content.
 
-        优先使用pdfplumber，备选PyMuPDF
+        Uses pdfplumber first, then PyMuPDF as fallback.
         """
         if not pdf_path or not os.path.exists(pdf_path):
             return ""
 
         text = ""
 
-        # 尝试使用pdfplumber
         try:
-            import pdfplumber
             text = self._extract_with_pdfplumber(pdf_path)
             if text.strip():
                 return text
         except ImportError:
             pass
         except Exception as e:
-            log.error(f"pdfplumber提取失败: {e}")
+            log.error(f"pdfplumber extraction failed: {e}")
 
-        # 备选：使用PyMuPDF (fitz)
         try:
-            import fitz  # PyMuPDF
+            import fitz
             text = self._extract_with_fitz(pdf_path)
             if text.strip():
                 return text
         except ImportError:
             pass
         except Exception as e:
-            log.error(f"PyMuPDF提取失败: {e}")
+            log.error(f"PyMuPDF extraction failed: {e}")
 
         return text
 
     def _extract_with_pdfplumber(self, pdf_path: str) -> str:
-        """使用pdfplumber提取文本"""
+        """Extract text using pdfplumber."""
         import pdfplumber
 
         text_parts = []
@@ -93,7 +89,7 @@ class PDFReader:
         return '\n\n'.join(text_parts)
 
     def _extract_with_fitz(self, pdf_path: str) -> str:
-        """使用PyMuPDF提取文本"""
+        """Extract text using PyMuPDF."""
         import fitz
 
         text_parts = []
@@ -106,7 +102,7 @@ class PDFReader:
         return '\n\n'.join(text_parts)
 
     def cleanup(self, pdf_path: str):
-        """清理临时PDF文件"""
+        """Clean up temp PDF file."""
         if pdf_path and os.path.exists(pdf_path):
             try:
                 os.remove(pdf_path)
@@ -114,7 +110,7 @@ class PDFReader:
                 pass
 
     def download_and_extract(self, url: str) -> str:
-        """下载PDF并提取内容（一体化方法）"""
+        """Download PDF and extract content (combined method)."""
         pdf_path = self.download_pdf(url)
         if not pdf_path:
             return ""
