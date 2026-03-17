@@ -12,7 +12,7 @@ fi
 
 # Initialize OpenRouter config if not exists
 if [ ! -f /app/data/openrouter_config.json ]; then
-    echo '{"enabled": true, "models": [], "schedule": "0 * * * *"}' > /app/data/openrouter_config.json
+    echo '{"enabled": true, "models": [], "times": ["0:00"], "weekdays": [0, 1, 2, 3, 4, 5, 6]}' > /app/data/openrouter_config.json
 fi
 
 # Initialize cron from config
@@ -46,10 +46,25 @@ if boc_config.get('enabled', True):
         hours_str = ','.join(str(h) for h in sorted(hours))
         cron_lines.append(f'{minute} {hours_str} * * {weekdays} cd /app && /usr/local/bin/python -m monitors.boc.main >> /app/data/logs/cron.log 2>&1')
 
-# OpenRouter cron entry
+# OpenRouter cron entries
 if openrouter_config.get('enabled', True):
-    schedule = openrouter_config.get('schedule', '0 * * * *')
-    cron_lines.append(f'{schedule} cd /app && /usr/local/bin/python -m monitors.openrouter.main >> /app/data/logs/cron.log 2>&1')
+    times = openrouter_config.get('times', ['0:00'])
+    weekdays = ','.join(str(d) for d in openrouter_config.get('weekdays', [0,1,2,3,4,5,6]))
+
+    minute_hours = {}
+    for t in times:
+        parts = t.split(':')
+        if len(parts) == 2:
+            minute = parts[1]
+            hour = int(parts[0])
+            if minute not in minute_hours:
+                minute_hours[minute] = []
+            if hour not in minute_hours[minute]:
+                minute_hours[minute].append(hour)
+
+    for minute, hours in minute_hours.items():
+        hours_str = ','.join(str(h) for h in sorted(hours))
+        cron_lines.append(f'{minute} {hours_str} * * {weekdays} cd /app && /usr/local/bin/python -m monitors.openrouter.main >> /app/data/logs/cron.log 2>&1')
 
 if cron_lines:
     cron_content = chr(10).join(cron_lines) + chr(10)
