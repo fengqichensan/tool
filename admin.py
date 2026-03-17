@@ -36,7 +36,8 @@ DEFAULT_BOC_CONFIG = {
 DEFAULT_OPENROUTER_CONFIG = {
     "enabled": True,
     "models": [],
-    "schedule": "0 * * * *",
+    "times": ["0:00"],
+    "weekdays": [0, 1, 2, 3, 4, 5, 6],
 }
 
 HTML_TEMPLATE = """
@@ -217,12 +218,32 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="card">
-            <div class="card-title">执行计划 (Cron)</div>
-            <div class="add-time">
-                <input type="text" class="schedule-input" id="openrouterSchedule" value="{{ openrouter.schedule }}" placeholder="0 * * * *">
-                <button class="btn btn-primary" onclick="updateOpenRouterSchedule()">更新计划</button>
+            <div class="card-title">执行时间</div>
+            <div class="times-container">
+                {% for time in openrouter.times %}
+                <span class="time-tag">
+                    {{ time }}
+                    <span class="remove" onclick="removeOpenRouterTime('{{ time }}')">&times;</span>
+                </span>
+                {% endfor %}
             </div>
-            <p class="info">默认: <code>0 * * * *</code> (每小时执行一次)</p>
+            <div class="add-time">
+                <input type="time" id="newOpenRouterTime" step="60">
+                <button class="btn btn-primary" onclick="addOpenRouterTime()">添加时间</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">执行日期</div>
+            <div class="weekdays">
+                {% for day in weekdays %}
+                <div class="weekday {{ 'active' if day.id in openrouter.weekdays else 'inactive' }}"
+                     onclick="toggleOpenRouterWeekday({{ day.id }})">
+                    {{ day.name }}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="info">点击切换选中状态，蓝色表示选中</p>
         </div>
 
         <div class="section-divider"></div>
@@ -311,13 +332,29 @@ HTML_TEMPLATE = """
             }).then(() => location.reload());
         }
 
-        function updateOpenRouterSchedule() {
-            const schedule = document.getElementById('openrouterSchedule').value.trim();
-            if (!schedule) return alert('请输入Cron表达式');
-            fetch('/api/openrouter/schedule', {
+        function addOpenRouterTime() {
+            const time = document.getElementById('newOpenRouterTime').value;
+            if (!time) return alert('请选择时间');
+            fetch('/api/openrouter/times', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({schedule: schedule})
+                body: JSON.stringify({time: time})
+            }).then(() => location.reload());
+        }
+
+        function removeOpenRouterTime(time) {
+            fetch('/api/openrouter/times', {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({time: time})
+            }).then(() => location.reload());
+        }
+
+        function toggleOpenRouterWeekday(dayId) {
+            fetch('/api/openrouter/weekdays', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({weekday: dayId})
             }).then(() => location.reload());
         }
     </script>
@@ -399,12 +436,27 @@ def update_crontab() -> None:
                 f"{minute} {hours_str} * * {weekdays} cd /app && {PYTHON_PATH} -m monitors.boc.main >> {BOC_LOG_FILE} 2>&1"
             )
 
-    # OpenRouter cron entry
+    # OpenRouter cron entries
     if openrouter_config.get("enabled", True):
-        schedule = openrouter_config.get("schedule", "0 * * * *")
-        cron_lines.append(
-            f"{schedule} cd /app && {PYTHON_PATH} -m monitors.openrouter.main >> {BOC_LOG_FILE} 2>&1"
-        )
+        times = openrouter_config.get("times", [])
+        weekdays = ",".join(str(d) for d in openrouter_config.get("weekdays", [0, 1, 2, 3, 4, 5, 6]))
+
+        minute_hours: dict[str, list[int]] = {}
+        for t in times:
+            parts = t.split(":")
+            if len(parts) == 2:
+                minute = parts[1]
+                hour = int(parts[0])
+                if minute not in minute_hours:
+                    minute_hours[minute] = []
+                if hour not in minute_hours[minute]:
+                    minute_hours[minute].append(hour)
+
+        for minute, hours in minute_hours.items():
+            hours_str = ",".join(str(h) for h in sorted(hours))
+            cron_lines.append(
+                f"{minute} {hours_str} * * {weekdays} cd /app && {PYTHON_PATH} -m monitors.openrouter.main >> {BOC_LOG_FILE} 2>&1"
+            )
 
     if not cron_lines:
         result = subprocess.run(["crontab", "-r"], capture_output=True)
@@ -564,12 +616,45 @@ def remove_openrouter_model():
     return jsonify({"success": True})
 
 
-@app.route("/api/openrouter/schedule", methods=["POST"])
-def update_openrouter_schedule():
+@app.route("/api/openrouter/times", methods=["POST"])
+def add_openrouter_schedule_time():
     data = request.get_json()
-    schedule = data.get("schedule", "0 * * * *").strip()
+    time_str = normalize_time(data.get("time", ""))
     config = load_openrouter_config()
-    config["schedule"] = schedule
+    if time_str and time_str not in config.get("times", []):
+        if "times" not in config:
+            config["times"] = []
+        config["times"].append(time_str)
+        config["times"].sort(key=lambda t: int(t.split(":")[0]) * 60 + int(t.split(":")[1]))
+        save_openrouter_config(config)
+        update_crontab()
+    return jsonify({"success": True})
+
+
+@app.route("/api/openrouter/times", methods=["DELETE"])
+def remove_openrouter_schedule_time():
+    data = request.get_json()
+    time_str = normalize_time(data.get("time", ""))
+    config = load_openrouter_config()
+    if time_str in config.get("times", []):
+        config["times"].remove(time_str)
+        save_openrouter_config(config)
+        update_crontab()
+    return jsonify({"success": True})
+
+
+@app.route("/api/openrouter/weekdays", methods=["POST"])
+def toggle_openrouter_weekday():
+    data = request.get_json()
+    day_id = data.get("weekday")
+    config = load_openrouter_config()
+    if "weekdays" not in config:
+        config["weekdays"] = [0, 1, 2, 3, 4, 5, 6]
+    if day_id in config["weekdays"]:
+        config["weekdays"].remove(day_id)
+    else:
+        config["weekdays"].append(day_id)
+        config["weekdays"].sort()
     save_openrouter_config(config)
     update_crontab()
     return jsonify({"success": True})
